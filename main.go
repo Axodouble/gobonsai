@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -96,7 +97,18 @@ func NewBonsaiTree(config *Config) *BonsaiTree {
 
 // Clear clears the screen
 func (bt *BonsaiTree) Clear() {
-	fmt.Print("\033[2J\033[H")
+	switch runtime.GOOS {
+	case "linux":
+		cmd := exec.Command("clear") //Linux example, its tested
+		cmd.Stdout = os.Stdout
+		cmd.Run()
+	case "windows":
+		cmd := exec.Command("cmd", "/c", "cls")
+		cmd.Stdout = os.Stdout
+		cmd.Run()
+	default:
+		fmt.Print("\033[2J\033[H")
+	}
 }
 
 // SetPixel sets a character at the given position
