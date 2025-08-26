@@ -176,9 +176,14 @@ func (bt *BonsaiTree) MoveCursor(x, y int) {
 	fmt.Printf("\033[%d;%dH", y, x)
 }
 
-// ClearScreen clears the entire screen and positions cursor at top-left
+// ClearScreen clears only the area used by the bonsai tree, preserving previous console output
 func (bt *BonsaiTree) ClearScreen() {
-	fmt.Print("\033[2J\033[H")
+	// Make screen empty
+	for y := 1; y <= bt.config.Height; y++ {
+		bt.MoveCursor(1, y)
+		fmt.Print(strings.Repeat(" ", bt.config.Width))
+	}
+	bt.MoveCursor(1, 1)
 }
 
 // SetPixelLive sets a character at the given position and immediately renders it in live mode
