@@ -39,7 +39,43 @@ type Config struct {
 	Leaves     []string
 	Width      int
 	Height     int
+	UseColors  bool
 }
+
+// Color constants for ANSI escape codes
+const (
+	ColorReset = "\033[0m"
+	ColorBold  = "\033[1m"
+
+	// Text colors
+	ColorBlack   = "\033[30m"
+	ColorRed     = "\033[31m"
+	ColorGreen   = "\033[32m"
+	ColorYellow  = "\033[33m"
+	ColorBlue    = "\033[34m"
+	ColorMagenta = "\033[35m"
+	ColorCyan    = "\033[36m"
+	ColorWhite   = "\033[37m"
+
+	// Bright colors
+	ColorBrightBlack   = "\033[90m"
+	ColorBrightRed     = "\033[91m"
+	ColorBrightGreen   = "\033[92m"
+	ColorBrightYellow  = "\033[93m"
+	ColorBrightBlue    = "\033[94m"
+	ColorBrightMagenta = "\033[95m"
+	ColorBrightCyan    = "\033[96m"
+	ColorBrightWhite   = "\033[97m"
+
+	// 256-color support
+	ColorBrown       = "\033[38;5;94m"  // Brown for branches
+	ColorDarkBrown   = "\033[38;5;52m"  // Dark brown for trunk
+	ColorLightBrown  = "\033[38;5;130m" // Light brown for branches
+	ColorDarkGreen   = "\033[38;5;22m"  // Dark green for leaves
+	ColorMediumGreen = "\033[38;5;28m"  // Medium green for leaves
+	ColorTerracotta  = "\033[38;5;166m" // Terracotta for pot
+	ColorOrange      = "\033[38;5;214m" // Orange/autumn leaves
+)
 
 // Point represents a coordinate
 type Point struct {
@@ -49,6 +85,7 @@ type Point struct {
 // BonsaiTree represents the tree structure
 type BonsaiTree struct {
 	canvas        [][]rune
+	colorCanvas   [][]string // Store color for each character
 	config        *Config
 	branches      int
 	shoots        int
@@ -74,20 +111,68 @@ func NewBonsaiTree(config *Config) *BonsaiTree {
 	config.Height = height
 
 	canvas := make([][]rune, height)
+	colorCanvas := make([][]string, height)
 	for i := range canvas {
 		canvas[i] = make([]rune, width)
+		colorCanvas[i] = make([]string, width)
 		for j := range canvas[i] {
 			canvas[i][j] = ' '
+			colorCanvas[i][j] = ""
 		}
 	}
 
 	return &BonsaiTree{
 		canvas:        canvas,
+		colorCanvas:   colorCanvas,
 		config:        config,
 		rng:           rand.New(rand.NewSource(config.Seed)),
 		initialized:   false,
 		messageOffset: 0,
 	}
+}
+
+// GetBranchColor returns the appropriate color for branch types
+func (bt *BonsaiTree) GetBranchColor(branchType BranchType) string {
+	if !bt.config.UseColors {
+		return ""
+	}
+
+	switch branchType {
+	case Trunk:
+		// Mix of dark brown and regular brown for trunk
+		if bt.rng.Intn(3) == 0 {
+			return ColorDarkBrown
+		}
+		return ColorBrown
+	case ShootLeft, ShootRight:
+		// Lighter browns for smaller branches
+		if bt.rng.Intn(4) == 0 {
+			return ColorLightBrown
+		}
+		return ColorBrown
+	case Dying, Dead:
+		// Green leaves with occasional brown/yellow
+		dice := bt.rng.Intn(10)
+		switch {
+		case dice <= 6:
+			return ColorMediumGreen // Most leaves are green
+		case dice <= 7:
+			return ColorDarkGreen // Some darker green
+		case dice == 8:
+			return ColorYellow // Some yellow/autumn leaves
+		case dice == 9:
+			return ColorBrown // Some brown/dead leaves
+		}
+	}
+	return ""
+}
+
+// GetBaseColor returns the appropriate color for the pot/base
+func (bt *BonsaiTree) GetBaseColor() string {
+	if !bt.config.UseColors {
+		return ""
+	}
+	return ColorBrightBlack
 }
 
 // MoveCursor moves cursor to specific position (1-based coordinates)
@@ -101,21 +186,26 @@ func (bt *BonsaiTree) ClearScreen() {
 }
 
 // SetPixelLive sets a character at the given position and immediately renders it in live mode
-func (bt *BonsaiTree) SetPixelLive(x, y int, char rune) {
+func (bt *BonsaiTree) SetPixelLive(x, y int, char rune, color string) {
 	if y >= 0 && y < len(bt.canvas) && x >= 0 && x < len(bt.canvas[y]) {
 		bt.canvas[y][x] = char
 		if bt.config.Live {
 			bt.MoveCursor(x+1, y+1) // Convert to 1-based coordinates
-			fmt.Printf("%c", char)
+			if color != "" {
+				fmt.Printf("%s%c%s", color, char, ColorReset)
+			} else {
+				fmt.Printf("%c", char)
+			}
 			os.Stdout.Sync() // Ensure immediate output
 		}
 	}
 }
 
 // SetPixel sets a character at the given position
-func (bt *BonsaiTree) SetPixel(x, y int, char rune) {
+func (bt *BonsaiTree) SetPixel(x, y int, char rune, color string) {
 	if y >= 0 && y < len(bt.canvas) && x >= 0 && x < len(bt.canvas[y]) {
 		bt.canvas[y][x] = char
+		bt.colorCanvas[y][x] = color
 	}
 }
 
@@ -343,10 +433,11 @@ func (bt *BonsaiTree) Branch(x, y int, branchType BranchType, life int) {
 		y += dy
 
 		char := bt.ChooseChar(branchType, life, dx, dy)
+		color := bt.GetBranchColor(branchType)
 		if bt.config.Live {
-			bt.SetPixelLive(x, y, char)
+			bt.SetPixelLive(x, y, char, color)
 		} else {
-			bt.SetPixel(x, y, char)
+			bt.SetPixel(x, y, char, color)
 		}
 
 		// Live mode animation
@@ -369,12 +460,13 @@ func (bt *BonsaiTree) DrawBase() {
 	case 1:
 		base := ":___________./~~~\\.___________:"
 		startX := centerX - len(base)/2
+		baseColor := bt.GetBaseColor()
 		for i, char := range base {
 			if bt.config.Live {
-				bt.SetPixelLive(startX+i, baseY, char)
+				bt.SetPixelLive(startX+i, baseY, char, baseColor)
 				time.Sleep(time.Duration(bt.config.TimeStep * 0.5 * float64(time.Second)))
 			} else {
-				bt.SetPixel(startX+i, baseY, char)
+				bt.SetPixel(startX+i, baseY, char, baseColor)
 			}
 		}
 
@@ -382,9 +474,9 @@ func (bt *BonsaiTree) DrawBase() {
 		startX = centerX - len(line1)/2
 		for i, char := range line1 {
 			if bt.config.Live {
-				bt.SetPixelLive(startX+i, baseY-1, char)
+				bt.SetPixelLive(startX+i, baseY-1, char, baseColor)
 			} else {
-				bt.SetPixel(startX+i, baseY-1, char)
+				bt.SetPixel(startX+i, baseY-1, char, baseColor)
 			}
 		}
 
@@ -392,9 +484,9 @@ func (bt *BonsaiTree) DrawBase() {
 		startX = centerX - len(line2)/2
 		for i, char := range line2 {
 			if bt.config.Live {
-				bt.SetPixelLive(startX+i, baseY-2, char)
+				bt.SetPixelLive(startX+i, baseY-2, char, baseColor)
 			} else {
-				bt.SetPixel(startX+i, baseY-2, char)
+				bt.SetPixel(startX+i, baseY-2, char, baseColor)
 			}
 		}
 
@@ -402,20 +494,21 @@ func (bt *BonsaiTree) DrawBase() {
 		startX = centerX - len(line3)/2
 		for i, char := range line3 {
 			if bt.config.Live {
-				bt.SetPixelLive(startX+i, baseY-3, char)
+				bt.SetPixelLive(startX+i, baseY-3, char, baseColor)
 			} else {
-				bt.SetPixel(startX+i, baseY-3, char)
+				bt.SetPixel(startX+i, baseY-3, char, baseColor)
 			}
 		}
 
 	case 2:
 		base := "(---./~~~\\.---)"
 		startX := centerX - len(base)/2
+		baseColor := bt.GetBaseColor()
 		for i, char := range base {
 			if bt.config.Live {
-				bt.SetPixelLive(startX+i, baseY, char)
+				bt.SetPixelLive(startX+i, baseY, char, baseColor)
 			} else {
-				bt.SetPixel(startX+i, baseY, char)
+				bt.SetPixel(startX+i, baseY, char, baseColor)
 			}
 		}
 
@@ -423,9 +516,9 @@ func (bt *BonsaiTree) DrawBase() {
 		startX = centerX - len(line1)/2
 		for i, char := range line1 {
 			if bt.config.Live {
-				bt.SetPixelLive(startX+i, baseY-1, char)
+				bt.SetPixelLive(startX+i, baseY-1, char, baseColor)
 			} else {
-				bt.SetPixel(startX+i, baseY-1, char)
+				bt.SetPixel(startX+i, baseY-1, char, baseColor)
 			}
 		}
 
@@ -433,9 +526,9 @@ func (bt *BonsaiTree) DrawBase() {
 		startX = centerX - len(line2)/2
 		for i, char := range line2 {
 			if bt.config.Live {
-				bt.SetPixelLive(startX+i, baseY-2, char)
+				bt.SetPixelLive(startX+i, baseY-2, char, baseColor)
 			} else {
-				bt.SetPixel(startX+i, baseY-2, char)
+				bt.SetPixel(startX+i, baseY-2, char, baseColor)
 			}
 		}
 	}
@@ -453,7 +546,13 @@ func (bt *BonsaiTree) Render() {
 		bt.MoveCursor(1, 1)
 		for y := 0; y < len(bt.canvas); y++ {
 			for x := 0; x < len(bt.canvas[y]); x++ {
-				fmt.Printf("%c", bt.canvas[y][x])
+				char := bt.canvas[y][x]
+				color := bt.colorCanvas[y][x]
+				if color != "" && bt.config.UseColors {
+					fmt.Printf("%s%c%s", color, char, ColorReset)
+				} else {
+					fmt.Printf("%c", char)
+				}
 			}
 			fmt.Println()
 		}
@@ -482,6 +581,7 @@ func (bt *BonsaiTree) GrowTree() {
 	for i := range bt.canvas {
 		for j := range bt.canvas[i] {
 			bt.canvas[i][j] = ' '
+			bt.colorCanvas[i][j] = ""
 		}
 	}
 
@@ -519,6 +619,7 @@ func main() {
 		TimeWait:   4.0,
 		Message:    "",
 		Leaves:     []string{"&", "*", "o", "@", "%"},
+		UseColors:  true, // Enable colors by default
 	}
 
 	// Parse command line flags
@@ -540,6 +641,11 @@ func main() {
 	flag.Float64Var(&config.TimeWait, "w", 4.0, "In infinite mode, wait TIME between each tree")
 	flag.StringVar(&config.Message, "message", "", "Attach message next to the tree")
 	flag.StringVar(&config.Message, "m", "", "Attach message next to the tree")
+	flag.BoolVar(&config.UseColors, "color", true, "Use colors (green leaves, brown branches, colored pot)")
+	flag.BoolVar(&config.UseColors, "C", true, "Use colors (green leaves, brown branches, colored pot)")
+
+	var noColor bool
+	flag.BoolVar(&noColor, "no-color", false, "Disable colors")
 
 	var seedStr string
 	var leavesStr string
@@ -576,6 +682,11 @@ func main() {
 	// Parse leaves
 	if leavesStr != "" {
 		config.Leaves = strings.Split(leavesStr, ",")
+	}
+
+	// Handle no-color flag
+	if noColor {
+		config.UseColors = false
 	}
 
 	// Validate configuration
