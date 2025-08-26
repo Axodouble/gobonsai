@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -50,21 +49,16 @@ type Point struct {
 
 // BonsaiTree represents the tree structure
 type BonsaiTree struct {
-	canvas   [][]rune
-	config   *Config
-	branches int
-	shoots   int
-	rng      *rand.Rand
+	canvas        [][]rune
+	config        *Config
+	branches      int
+	shoots        int
+	rng           *rand.Rand
+	initialized   bool
+	messageOffset int
 }
 
 // Terminal size detection
-type winsize struct {
-	Row    uint16
-	Col    uint16
-	Xpixel uint16
-	Ypixel uint16
-}
-
 func getTerminalSize() (int, int) {
 	width, height, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
@@ -89,25 +83,33 @@ func NewBonsaiTree(config *Config) *BonsaiTree {
 	}
 
 	return &BonsaiTree{
-		canvas: canvas,
-		config: config,
-		rng:    rand.New(rand.NewSource(config.Seed)),
+		canvas:        canvas,
+		config:        config,
+		rng:           rand.New(rand.NewSource(config.Seed)),
+		initialized:   false,
+		messageOffset: 0,
 	}
 }
 
-// Clear clears the screen
-func (bt *BonsaiTree) Clear() {
-	switch runtime.GOOS {
-	case "linux":
-		cmd := exec.Command("clear") //Linux example, its tested
-		cmd.Stdout = os.Stdout
-		cmd.Run()
-	case "windows":
-		cmd := exec.Command("cmd", "/c", "cls")
-		cmd.Stdout = os.Stdout
-		cmd.Run()
-	default:
-		fmt.Print("\033[2J\033[H")
+// MoveCursor moves cursor to specific position (1-based coordinates)
+func (bt *BonsaiTree) MoveCursor(x, y int) {
+	fmt.Printf("\033[%d;%dH", y, x)
+}
+
+// ClearScreen clears the entire screen and positions cursor at top-left
+func (bt *BonsaiTree) ClearScreen() {
+	fmt.Print("\033[2J\033[H")
+}
+
+// SetPixelLive sets a character at the given position and immediately renders it in live mode
+func (bt *BonsaiTree) SetPixelLive(x, y int, char rune) {
+	if y >= 0 && y < len(bt.canvas) && x >= 0 && x < len(bt.canvas[y]) {
+		bt.canvas[y][x] = char
+		if bt.config.Live {
+			bt.MoveCursor(x+1, y+1) // Convert to 1-based coordinates
+			fmt.Printf("%c", char)
+			os.Stdout.Sync() // Ensure immediate output
+		}
 	}
 }
 
@@ -342,11 +344,14 @@ func (bt *BonsaiTree) Branch(x, y int, branchType BranchType, life int) {
 		y += dy
 
 		char := bt.ChooseChar(branchType, life, dx, dy)
-		bt.SetPixel(x, y, char)
+		if bt.config.Live {
+			bt.SetPixelLive(x, y, char)
+		} else {
+			bt.SetPixel(x, y, char)
+		}
 
 		// Live mode animation
 		if bt.config.Live {
-			bt.Render()
 			time.Sleep(time.Duration(bt.config.TimeStep * float64(time.Second)))
 		}
 	}
@@ -366,61 +371,104 @@ func (bt *BonsaiTree) DrawBase() {
 		base := ":___________./~~~\\.___________:"
 		startX := centerX - len(base)/2
 		for i, char := range base {
-			bt.SetPixel(startX+i, baseY, char)
+			if bt.config.Live {
+				bt.SetPixelLive(startX+i, baseY, char)
+				time.Sleep(time.Duration(bt.config.TimeStep * 0.5 * float64(time.Second)))
+			} else {
+				bt.SetPixel(startX+i, baseY, char)
+			}
 		}
 
 		line1 := " \\                           / "
 		startX = centerX - len(line1)/2
 		for i, char := range line1 {
-			bt.SetPixel(startX+i, baseY-1, char)
+			if bt.config.Live {
+				bt.SetPixelLive(startX+i, baseY-1, char)
+			} else {
+				bt.SetPixel(startX+i, baseY-1, char)
+			}
 		}
 
 		line2 := "  \\_________________________/ "
 		startX = centerX - len(line2)/2
 		for i, char := range line2 {
-			bt.SetPixel(startX+i, baseY-2, char)
+			if bt.config.Live {
+				bt.SetPixelLive(startX+i, baseY-2, char)
+			} else {
+				bt.SetPixel(startX+i, baseY-2, char)
+			}
 		}
 
 		line3 := "  (_)                     (_)"
 		startX = centerX - len(line3)/2
 		for i, char := range line3 {
-			bt.SetPixel(startX+i, baseY-3, char)
+			if bt.config.Live {
+				bt.SetPixelLive(startX+i, baseY-3, char)
+			} else {
+				bt.SetPixel(startX+i, baseY-3, char)
+			}
 		}
 
 	case 2:
 		base := "(---./~~~\\.---)"
 		startX := centerX - len(base)/2
 		for i, char := range base {
-			bt.SetPixel(startX+i, baseY, char)
+			if bt.config.Live {
+				bt.SetPixelLive(startX+i, baseY, char)
+			} else {
+				bt.SetPixel(startX+i, baseY, char)
+			}
 		}
 
 		line1 := " (           ) "
 		startX = centerX - len(line1)/2
 		for i, char := range line1 {
-			bt.SetPixel(startX+i, baseY-1, char)
+			if bt.config.Live {
+				bt.SetPixelLive(startX+i, baseY-1, char)
+			} else {
+				bt.SetPixel(startX+i, baseY-1, char)
+			}
 		}
 
 		line2 := "  (_________)  "
 		startX = centerX - len(line2)/2
 		for i, char := range line2 {
-			bt.SetPixel(startX+i, baseY-2, char)
+			if bt.config.Live {
+				bt.SetPixelLive(startX+i, baseY-2, char)
+			} else {
+				bt.SetPixel(startX+i, baseY-2, char)
+			}
 		}
 	}
 }
 
 // Render displays the current state of the tree
 func (bt *BonsaiTree) Render() {
-	bt.Clear()
-
-	for y := 0; y < len(bt.canvas); y++ {
-		for x := 0; x < len(bt.canvas[y]); x++ {
-			fmt.Printf("%c", bt.canvas[y][x])
-		}
-		fmt.Println()
+	if !bt.initialized {
+		bt.ClearScreen()
+		bt.initialized = true
 	}
 
-	if bt.config.Message != "" {
-		fmt.Printf("\n%s\n", bt.config.Message)
+	// Only render the full screen if not in live mode
+	if !bt.config.Live {
+		bt.MoveCursor(1, 1)
+		for y := 0; y < len(bt.canvas); y++ {
+			for x := 0; x < len(bt.canvas[y]); x++ {
+				fmt.Printf("%c", bt.canvas[y][x])
+			}
+			fmt.Println()
+		}
+
+		if bt.config.Message != "" {
+			fmt.Printf("\n%s\n", bt.config.Message)
+		}
+	} else {
+		// In live mode, render message if it hasn't been rendered yet
+		if bt.config.Message != "" && bt.messageOffset == 0 {
+			bt.MoveCursor(1, bt.config.Height+2)
+			fmt.Printf("%s", bt.config.Message)
+			bt.messageOffset = len(bt.config.Message)
+		}
 	}
 }
 
@@ -428,12 +476,20 @@ func (bt *BonsaiTree) Render() {
 func (bt *BonsaiTree) GrowTree() {
 	bt.branches = 0
 	bt.shoots = 0
+	bt.initialized = false
+	bt.messageOffset = 0
 
 	// Clear canvas
 	for i := range bt.canvas {
 		for j := range bt.canvas[i] {
 			bt.canvas[i][j] = ' '
 		}
+	}
+
+	// Initialize screen for live mode
+	if bt.config.Live {
+		bt.ClearScreen()
+		bt.initialized = true
 	}
 
 	bt.DrawBase()
@@ -453,6 +509,7 @@ func (bt *BonsaiTree) GrowTree() {
 
 // WaitForKeypress waits for user input
 func (bt *BonsaiTree) WaitForKeypress() {
+	bt.MoveCursor(1, bt.config.Height+2)
 	fmt.Println("\nPress Enter to exit...")
 	bufio.NewReader(os.Stdin).ReadBytes('\n')
 }
