@@ -775,6 +775,11 @@ func main() {
 
 	// Main loop
 	for {
+		// In infinite mode, generate a new seed for each tree (unless original seed was explicitly set)
+		if config.Infinite && seedStr == "" {
+			config.Seed = time.Now().UnixNano()
+		}
+
 		tree := NewBonsaiTree(config)
 		tree.GrowTree()
 
