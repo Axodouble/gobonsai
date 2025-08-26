@@ -9,9 +9,9 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
-	"unsafe"
+
+	"golang.org/x/term"
 )
 
 // BranchType represents different types of branches
@@ -65,17 +65,12 @@ type winsize struct {
 }
 
 func getTerminalSize() (int, int) {
-	ws := &winsize{}
-	retCode, _, errno := syscall.Syscall(syscall.SYS_IOCTL,
-		uintptr(syscall.Stdin),
-		uintptr(syscall.TIOCGWINSZ),
-		uintptr(unsafe.Pointer(ws)))
-
-	if int(retCode) == -1 {
-		fmt.Printf("Error getting terminal size: %v\n", errno)
+	width, height, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		fmt.Printf("Error getting terminal size: %v\n", err)
 		return 80, 24 // Default fallback
 	}
-	return int(ws.Col), int(ws.Row)
+	return width, height
 }
 
 // NewBonsaiTree creates a new bonsai tree
