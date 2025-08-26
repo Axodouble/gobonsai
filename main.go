@@ -139,10 +139,6 @@ func (bt *BonsaiTree) GetBranchColor(branchType BranchType) string {
 
 	switch branchType {
 	case Trunk:
-		// Mix of dark brown and regular brown for trunk
-		if bt.rng.Intn(3) == 0 {
-			return ColorDarkBrown
-		}
 		return ColorBrown
 	case ShootLeft, ShootRight:
 		// Lighter browns for smaller branches
@@ -400,8 +396,12 @@ func (bt *BonsaiTree) Branch(x, y int, branchType BranchType, life int) {
 		dx, dy := bt.GetDeltas(branchType, life, age)
 
 		// Prevent going too close to ground
-		if dy > 0 && y > (bt.config.Height-3) {
+		if dy > 0 && y > (bt.config.Height-7) {
 			dy--
+		}
+		// Ensure first move is at least 1 up
+		if age == 1 && dy >= 0 {
+			dy = -2
 		}
 
 		// Branching logic
@@ -455,28 +455,56 @@ func (bt *BonsaiTree) DrawBase() {
 
 	baseY := bt.config.Height - 1
 	centerX := bt.config.Width / 2
+	grassColor := ""
+	if bt.config.UseColors {
+		grassColor = ColorMediumGreen
+	}
 
 	switch bt.config.BaseType {
 	case 1:
-		base := ":___________./~~~\\.___________:"
-		startX := centerX - len(base)/2
-		baseColor := bt.GetBaseColor()
-		for i, char := range base {
-			if bt.config.Live {
-				bt.SetPixelLive(startX+i, baseY, char, baseColor)
-				time.Sleep(time.Duration(bt.config.TimeStep * 0.5 * float64(time.Second)))
-			} else {
-				bt.SetPixel(startX+i, baseY, char, baseColor)
+		// Draw grass/foliage line first (within the pot boundaries)
+		// Calculate pot boundaries based on the base line
+		potWidth := 25 // Width of the pot interior (from the base line)
+		grassLine := ".,~`'^\"*o%@&^.,~`'^\"*o%@&^."
+		grassStartX := centerX - potWidth/2
+		for i := 0; i < potWidth && i < len(grassLine); i++ {
+			if grassStartX+i >= 0 && grassStartX+i < bt.config.Width && baseY-4 >= 0 {
+				char := grassLine[i%len(grassLine)]
+				if bt.config.Live {
+					bt.SetPixelLive(grassStartX+i, baseY-4, rune(char), grassColor)
+				} else {
+					bt.SetPixel(grassStartX+i, baseY-4, rune(char), grassColor)
+				}
 			}
 		}
 
-		line1 := " \\                           / "
-		startX = centerX - len(line1)/2
-		for i, char := range line1 {
-			if bt.config.Live {
-				bt.SetPixelLive(startX+i, baseY-1, char, baseColor)
+		line3 := "   (^)                 (^)   "
+		startX := centerX - len(line3)/2
+		baseColor := bt.GetBaseColor()
+
+		// Draw the pot markers (^) in gray/base color and grass in between
+		for i, char := range line3 {
+			var currentColor string
+			if char == '(' || char == ')' || char == '^' {
+				// Pot markers in gray/base color
+				currentColor = baseColor
+			} else if i > 6 && i < 23 { // Between the (^) markers
+				// Grass in the middle section
+				if char == ' ' {
+					// Replace spaces with grass characters
+					grassChars := ".,~`'^\"*o%"
+					char = rune(grassChars[(i-7)%len(grassChars)])
+				}
+				currentColor = grassColor
 			} else {
-				bt.SetPixel(startX+i, baseY-1, char, baseColor)
+				// Spaces outside - keep as base color
+				currentColor = baseColor
+			}
+
+			if bt.config.Live {
+				bt.SetPixelLive(startX+i, baseY-3, char, currentColor)
+			} else {
+				bt.SetPixel(startX+i, baseY-3, char, currentColor)
 			}
 		}
 
@@ -490,29 +518,7 @@ func (bt *BonsaiTree) DrawBase() {
 			}
 		}
 
-		line3 := "  (_)                     (_)"
-		startX = centerX - len(line3)/2
-		for i, char := range line3 {
-			if bt.config.Live {
-				bt.SetPixelLive(startX+i, baseY-3, char, baseColor)
-			} else {
-				bt.SetPixel(startX+i, baseY-3, char, baseColor)
-			}
-		}
-
-	case 2:
-		base := "(---./~~~\\.---)"
-		startX := centerX - len(base)/2
-		baseColor := bt.GetBaseColor()
-		for i, char := range base {
-			if bt.config.Live {
-				bt.SetPixelLive(startX+i, baseY, char, baseColor)
-			} else {
-				bt.SetPixel(startX+i, baseY, char, baseColor)
-			}
-		}
-
-		line1 := " (           ) "
+		line1 := " \\                           / "
 		startX = centerX - len(line1)/2
 		for i, char := range line1 {
 			if bt.config.Live {
@@ -522,13 +528,64 @@ func (bt *BonsaiTree) DrawBase() {
 			}
 		}
 
-		line2 := "  (_________)  "
-		startX = centerX - len(line2)/2
-		for i, char := range line2 {
+		base := ":___________./~~~\\.___________:"
+		startX = centerX - len(base)/2
+		for i, char := range base {
 			if bt.config.Live {
-				bt.SetPixelLive(startX+i, baseY-2, char, baseColor)
+				bt.SetPixelLive(startX+i, baseY, char, baseColor)
 			} else {
-				bt.SetPixel(startX+i, baseY-2, char, baseColor)
+				bt.SetPixel(startX+i, baseY, char, baseColor)
+			}
+		}
+
+	case 2:
+		// Draw grass/foliage line first (above the pot)
+		grassLine := ".,~`'^\".,~`'^\".,~`'^\"."
+		grassStartX := centerX - len(grassLine)/2
+		grassColor := ""
+		if bt.config.UseColors {
+			grassColor = ColorMediumGreen
+		}
+		for i, char := range grassLine {
+			if grassStartX+i >= 0 && grassStartX+i < bt.config.Width && baseY-3 >= 0 {
+				if bt.config.Live {
+					bt.SetPixelLive(grassStartX+i, baseY-3, char, grassColor)
+				} else {
+					bt.SetPixel(grassStartX+i, baseY-3, char, grassColor)
+				}
+			}
+		}
+
+		line2 := "  (^^^^^^^)  "
+		startX := centerX - len(line2)/2
+		for i, char := range line2 {
+			// Color the parentheses and ^ as grass/green
+			currentColor := grassColor
+			if bt.config.Live {
+				bt.SetPixelLive(startX+i, baseY-2, char, currentColor)
+			} else {
+				bt.SetPixel(startX+i, baseY-2, char, currentColor)
+			}
+		}
+
+		line1 := " (           ) "
+		startX = centerX - len(line1)/2
+		baseColor := bt.GetBaseColor()
+		for i, char := range line1 {
+			if bt.config.Live {
+				bt.SetPixelLive(startX+i, baseY-1, char, baseColor)
+			} else {
+				bt.SetPixel(startX+i, baseY-1, char, baseColor)
+			}
+		}
+
+		base := "(---./~~~\\.---)"
+		startX = centerX - len(base)/2
+		for i, char := range base {
+			if bt.config.Live {
+				bt.SetPixelLive(startX+i, baseY, char, baseColor)
+			} else {
+				bt.SetPixel(startX+i, baseY, char, baseColor)
 			}
 		}
 	}
@@ -594,9 +651,9 @@ func (bt *BonsaiTree) GrowTree() {
 	bt.DrawBase()
 
 	startX := bt.config.Width / 2
-	startY := bt.config.Height - 1
+	startY := bt.config.Height + 1
 	if bt.config.BaseType > 0 {
-		startY -= 4 // Account for base height
+		startY -= 5 // Account for base height + grass line above the pot
 	}
 
 	bt.Branch(startX, startY, Trunk, bt.config.LifeStart)
