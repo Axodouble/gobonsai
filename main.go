@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -507,13 +506,6 @@ func (bt *BonsaiTree) GrowTree() {
 	}
 }
 
-// WaitForKeypress waits for user input
-func (bt *BonsaiTree) WaitForKeypress() {
-	bt.MoveCursor(1, bt.config.Height+2)
-	fmt.Println("\nPress Enter to exit...")
-	bufio.NewReader(os.Stdin).ReadBytes('\n')
-}
-
 func main() {
 	config := &Config{
 		Live:       false,
@@ -604,9 +596,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Seed random number generator
-	// rand.New(rand.NewSource(config.Seed)) - now handled in NewBonsaiTree
-
 	// Hide cursor
 	fmt.Print("\033[?25l")
 	defer fmt.Print("\033[?25h") // Show cursor on exit
@@ -626,7 +615,7 @@ func main() {
 			// Check for interrupt
 			exec.Command("stty", "-cbreak", "echo").Run()
 		} else {
-			tree.WaitForKeypress()
+			tree.MoveCursor(1, tree.config.Height+2)
 			break
 		}
 	}
