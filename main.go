@@ -6,8 +6,10 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"golang.org/x/term"
@@ -104,6 +106,28 @@ func getTerminalSize() (int, int) {
 	return width, height
 }
 
+func saveConsole() {
+	fmt.Print("\033[s")    // Save cursor position
+	fmt.Print("\033[?47h") // Switch to alternate screen buffer
+}
+
+func restoreConsole() {
+	fmt.Print("\033[?47l") // Switch back to normal screen buffer
+	fmt.Print("\033[u")    // Restore cursor position
+}
+
+// setupSignalHandler sets up a signal handler to restore console on interrupt
+func setupSignalHandler() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		restoreConsole()
+		fmt.Print("\033[?25h") // Show cursor
+		os.Exit(0)
+	}()
+}
+
 // NewBonsaiTree creates a new bonsai tree
 func NewBonsaiTree(config *Config) *BonsaiTree {
 	width, height := getTerminalSize()
@@ -176,14 +200,14 @@ func (bt *BonsaiTree) MoveCursor(x, y int) {
 	fmt.Printf("\033[%d;%dH", y, x)
 }
 
-// ClearScreen clears only the area used by the bonsai tree, preserving previous console output
+// ClearScreen clears the screen using the alternate buffer (preserves original console)
 func (bt *BonsaiTree) ClearScreen() {
-	// Make screen empty
-	for y := 1; y <= bt.config.Height; y++ {
-		bt.MoveCursor(1, y)
-		fmt.Print(strings.Repeat(" ", bt.config.Width))
+	// Only clear screen for interactive modes, not for print mode
+	if !bt.config.PrintTree {
+		// Clear the alternate screen buffer
+		fmt.Print("\033[2J") // Clear entire screen
+		fmt.Print("\033[H")  // Move cursor to top-left
 	}
-	bt.MoveCursor(1, 1)
 }
 
 // SetPixelLive sets a character at the given position and immediately renders it in live mode
@@ -601,22 +625,41 @@ func (bt *BonsaiTree) Render() {
 
 	// Only render the full screen if not in live mode
 	if !bt.config.Live {
-		bt.MoveCursor(1, 1)
-		for y := 0; y < len(bt.canvas); y++ {
-			for x := 0; x < len(bt.canvas[y]); x++ {
-				char := bt.canvas[y][x]
-				color := bt.colorCanvas[y][x]
-				if color != "" && bt.config.UseColors {
-					fmt.Printf("%s%c%s", color, char, ColorReset)
-				} else {
-					fmt.Printf("%c", char)
+		// For print mode, don't use cursor positioning
+		if bt.config.PrintTree {
+			for y := 0; y < len(bt.canvas); y++ {
+				for x := 0; x < len(bt.canvas[y]); x++ {
+					char := bt.canvas[y][x]
+					color := bt.colorCanvas[y][x]
+					if color != "" && bt.config.UseColors {
+						fmt.Printf("%s%c%s", color, char, ColorReset)
+					} else {
+						fmt.Printf("%c", char)
+					}
 				}
+				fmt.Println()
 			}
-			fmt.Println()
-		}
-
-		if bt.config.Message != "" {
-			fmt.Printf("\n%s\n", bt.config.Message)
+			if bt.config.Message != "" {
+				fmt.Printf("\n%s\n", bt.config.Message)
+			}
+		} else {
+			// For interactive mode, use cursor positioning
+			bt.MoveCursor(1, 1)
+			for y := 0; y < len(bt.canvas); y++ {
+				for x := 0; x < len(bt.canvas[y]); x++ {
+					char := bt.canvas[y][x]
+					color := bt.colorCanvas[y][x]
+					if color != "" && bt.config.UseColors {
+						fmt.Printf("%s%c%s", color, char, ColorReset)
+					} else {
+						fmt.Printf("%c", char)
+					}
+				}
+				fmt.Println()
+			}
+			if bt.config.Message != "" {
+				fmt.Printf("\n%s\n", bt.config.Message)
+			}
 		}
 	} else {
 		// In live mode, render message if it hasn't been rendered yet
@@ -768,6 +811,13 @@ func main() {
 	// Hide cursor
 	fmt.Print("\033[?25l")
 	defer fmt.Print("\033[?25h") // Show cursor on exit
+
+	// Save console state and setup signal handling (only for interactive modes)
+	if !config.PrintTree {
+		saveConsole()
+		defer restoreConsole()
+		setupSignalHandler()
+	}
 
 	// Main loop
 	for {
