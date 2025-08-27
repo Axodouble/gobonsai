@@ -469,21 +469,8 @@ func (bt *BonsaiTree) DrawBase() {
 	case 1:
 		// Draw grass/foliage line first (within the pot boundaries)
 		// Calculate pot boundaries based on the base line
-		potWidth := 25 // Width of the pot interior (from the base line)
-		grassLine := ".,~`'^\"*o%@&^.,~`'^\"*o%@&^."
-		grassStartX := centerX - potWidth/2
-		for i := 0; i < potWidth && i < len(grassLine); i++ {
-			if grassStartX+i >= 0 && grassStartX+i < bt.config.Width && baseY-4 >= 0 {
-				char := grassLine[i%len(grassLine)]
-				if bt.config.Live {
-					bt.SetPixelLive(grassStartX+i, baseY-4, rune(char), grassColor)
-				} else {
-					bt.SetPixel(grassStartX+i, baseY-4, rune(char), grassColor)
-				}
-			}
-		}
 
-		line3 := "   (^)                 (^)   "
+		line3 := ":___________./~~~\\.___________:"
 		startX := centerX - len(line3)/2
 		baseColor := bt.GetBaseColor()
 
@@ -493,7 +480,16 @@ func (bt *BonsaiTree) DrawBase() {
 			if char == '(' || char == ')' || char == '^' {
 				// Pot markers in gray/base color
 				currentColor = baseColor
-			} else if i > 6 && i < 23 { // Between the (^) markers
+			} else if char == '_' {
+				// Replace '_' with a grass character and make it green
+				grassChars := ".,~`'^\"*o%"
+				index := ((i - 7) + len(grassChars)) % len(grassChars)
+				char = rune(grassChars[index])
+				currentColor = grassColor
+			} else if char == '.' || char == '/' || char == '~' || char == '\\' {
+				// Turn ., /, ~ brown
+				currentColor = ColorBrown
+			} else if i > 0 && i < 30 { // Between the (^) markers
 				// Grass in the middle section
 				if char == ' ' {
 					// Replace spaces with grass characters
@@ -513,7 +509,7 @@ func (bt *BonsaiTree) DrawBase() {
 			}
 		}
 
-		line2 := "  \\_________________________/ "
+		line2 := " \\                           / "
 		startX = centerX - len(line2)/2
 		for i, char := range line2 {
 			if bt.config.Live {
@@ -523,7 +519,7 @@ func (bt *BonsaiTree) DrawBase() {
 			}
 		}
 
-		line1 := " \\                           / "
+		line1 := "  \\_________________________/ "
 		startX = centerX - len(line1)/2
 		for i, char := range line1 {
 			if bt.config.Live {
@@ -533,7 +529,7 @@ func (bt *BonsaiTree) DrawBase() {
 			}
 		}
 
-		base := ":___________./~~~\\.___________:"
+		base := "   (^)                 (^)   "
 		startX = centerX - len(base)/2
 		for i, char := range base {
 			if bt.config.Live {
@@ -656,7 +652,7 @@ func (bt *BonsaiTree) GrowTree() {
 	bt.DrawBase()
 
 	startX := bt.config.Width / 2
-	startY := bt.config.Height + 1
+	startY := bt.config.Height + 2
 	if bt.config.BaseType > 0 {
 		startY -= 5 // Account for base height + grass line above the pot
 	}
