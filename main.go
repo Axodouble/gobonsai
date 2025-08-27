@@ -790,6 +790,7 @@ func main() {
 			exec.Command("stty", "-cbreak", "echo").Run()
 		} else {
 			tree.MoveCursor(1, tree.config.Height+2)
+			fmt.Scanln()
 			break
 		}
 	}
