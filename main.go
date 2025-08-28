@@ -132,7 +132,11 @@ func setupSignalHandler() {
 func NewBonsaiTree(config *Config) *BonsaiTree {
 	width, height := getTerminalSize()
 	config.Width = width
-	config.Height = height
+	if config.PrintTree {
+		config.Height = height - 1
+	} else {
+		config.Height = height
+	}
 
 	canvas := make([][]rune, height)
 	colorCanvas := make([][]string, height)
