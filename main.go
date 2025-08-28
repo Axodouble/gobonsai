@@ -163,25 +163,23 @@ func (bt *BonsaiTree) GetBranchColor(branchType BranchType) string {
 
 	switch branchType {
 	case Trunk:
-		return ColorBrown
+		return ColorYellow
 	case ShootLeft, ShootRight:
 		// Lighter browns for smaller branches
 		if bt.rng.Intn(4) == 0 {
-			return ColorLightBrown
+			return ColorYellow
 		}
-		return ColorBrown
+		return ColorBrightYellow
 	case Dying, Dead:
 		// Green leaves with occasional brown/yellow
 		dice := bt.rng.Intn(10)
 		switch {
-		case dice <= 6:
-			return ColorMediumGreen // Most leaves are green
-		case dice <= 7:
-			return ColorDarkGreen // Some darker green
-		case dice == 8:
-			return ColorYellow // Some yellow/autumn leaves
+		case dice <= 8:
+			return ColorBrightGreen // Some darker green
 		case dice == 9:
-			return ColorBrown // Some brown/dead leaves
+			return ColorMediumGreen // Some yellow/autumn leaves
+		case dice == 9:
+			return ColorBrightYellow // Some brown/dead leaves
 		}
 	}
 	return ""
@@ -486,7 +484,7 @@ func (bt *BonsaiTree) DrawBase() {
 	centerX := bt.config.Width / 2
 	grassColor := ""
 	if bt.config.UseColors {
-		grassColor = ColorMediumGreen
+		grassColor = ColorBrightGreen
 	}
 
 	switch bt.config.BaseType {
@@ -512,7 +510,7 @@ func (bt *BonsaiTree) DrawBase() {
 				currentColor = grassColor
 			} else if char == '.' || char == '/' || char == '~' || char == '\\' {
 				// Turn ., /, ~ brown
-				currentColor = ColorBrown
+				currentColor = ColorYellow
 			} else if i > 0 && i < 30 { // Between the (^) markers
 				// Grass in the middle section
 				if char == ' ' {
