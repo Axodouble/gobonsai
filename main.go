@@ -489,9 +489,6 @@ func (bt *BonsaiTree) DrawBase() {
 
 	switch bt.config.BaseType {
 	case 1:
-		// Draw grass/foliage line first (within the pot boundaries)
-		// Calculate pot boundaries based on the base line
-
 		line3 := ":___________./~~~\\.___________:"
 		startX := centerX - len(line3)/2
 		baseColor := bt.GetBaseColor()
@@ -562,38 +559,57 @@ func (bt *BonsaiTree) DrawBase() {
 		}
 
 	case 2:
-		// Draw grass/foliage line first (above the pot)
-		grassLine := ".,~`'^\".,~`'^\".,~`'^\"."
-		grassStartX := centerX - len(grassLine)/2
-		grassColor := ""
-		if bt.config.UseColors {
-			grassColor = ColorMediumGreen
-		}
-		for i, char := range grassLine {
-			if grassStartX+i >= 0 && grassStartX+i < bt.config.Width && baseY-3 >= 0 {
-				if bt.config.Live {
-					bt.SetPixelLive(grassStartX+i, baseY-3, char, grassColor)
-				} else {
-					bt.SetPixel(grassStartX+i, baseY-3, char, grassColor)
-				}
-			}
-		}
-
-		line2 := "  (^^^^^^^)  "
-		startX := centerX - len(line2)/2
-		for i, char := range line2 {
-			// Color the parentheses and ^ as grass/green
-			currentColor := grassColor
-			if bt.config.Live {
-				bt.SetPixelLive(startX+i, baseY-2, char, currentColor)
-			} else {
-				bt.SetPixel(startX+i, baseY-2, char, currentColor)
-			}
-		}
-
-		line1 := " (           ) "
-		startX = centerX - len(line1)/2
+		line3 := ":_______./~~~\\._______:"
+		startX := centerX - len(line3)/2
 		baseColor := bt.GetBaseColor()
+
+		// Draw the pot markers (^) in gray/base color and grass in between
+		for i, char := range line3 {
+			var currentColor string
+			if char == '(' || char == ')' || char == '^' {
+				// Pot markers in gray/base color
+				currentColor = baseColor
+			} else if char == '_' {
+				// Replace '_' with a grass character and make it green
+				grassChars := ".,~`'^\"*o%"
+				index := ((i - 7) + len(grassChars)) % len(grassChars)
+				char = rune(grassChars[index])
+				currentColor = grassColor
+			} else if char == '.' || char == '/' || char == '~' || char == '\\' {
+				// Turn ., /, ~ brown
+				currentColor = ColorYellow
+			} else if i > 0 && i < 30 { // Between the (^) markers
+				// Grass in the middle section
+				if char == ' ' {
+					// Replace spaces with grass characters
+					grassChars := ".,~`'^\"*o%"
+					char = rune(grassChars[(i-7)%len(grassChars)])
+				}
+				currentColor = grassColor
+			} else {
+				// Spaces outside - keep as base color
+				currentColor = baseColor
+			}
+
+			if bt.config.Live {
+				bt.SetPixelLive(startX+i, baseY-3, char, currentColor)
+			} else {
+				bt.SetPixel(startX+i, baseY-3, char, currentColor)
+			}
+		}
+
+		line2 := " \\                   / "
+		startX = centerX - len(line2)/2
+		for i, char := range line2 {
+			if bt.config.Live {
+				bt.SetPixelLive(startX+i, baseY-2, char, baseColor)
+			} else {
+				bt.SetPixel(startX+i, baseY-2, char, baseColor)
+			}
+		}
+
+		line1 := "  \\_________________/ "
+		startX = centerX - len(line1)/2
 		for i, char := range line1 {
 			if bt.config.Live {
 				bt.SetPixelLive(startX+i, baseY-1, char, baseColor)
@@ -602,7 +618,7 @@ func (bt *BonsaiTree) DrawBase() {
 			}
 		}
 
-		base := "(---./~~~\\.---)"
+		base := "   (^)          (^)   "
 		startX = centerX - len(base)/2
 		for i, char := range base {
 			if bt.config.Live {
@@ -611,6 +627,7 @@ func (bt *BonsaiTree) DrawBase() {
 				bt.SetPixel(startX+i, baseY, char, baseColor)
 			}
 		}
+
 	}
 }
 
